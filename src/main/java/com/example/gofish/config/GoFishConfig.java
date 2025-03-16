@@ -22,6 +22,11 @@ public class GoFishConfig {
     public static boolean showSeaCreatureMessages = true;
     public static boolean showTreasureMessages = true;
     
+    // Auto-catch settings
+    public static boolean enableAutoCatch = false;
+    public static int minCatchDelay = 30;
+    public static int maxCatchDelay = 150;
+    
     /**
      * Initialize the configuration
      * @param configFile The configuration file
@@ -102,6 +107,41 @@ public class GoFishConfig {
                 "Show messages when treasure is found"
             );
             showTreasureMessages = showTreasureMessagesProp.getBoolean();
+            
+            // Auto-catch settings
+            Property enableAutoCatchProp = config.get(
+                "autocatch",
+                "enableAutoCatch",
+                false,
+                "Automatically catch fish when detected (use at your own risk)"
+            );
+            enableAutoCatch = enableAutoCatchProp.getBoolean();
+            
+            Property minCatchDelayProp = config.get(
+                "autocatch",
+                "minCatchDelay",
+                30,
+                "Minimum delay in milliseconds before auto-catching (30-1000)",
+                30,
+                1000
+            );
+            minCatchDelay = minCatchDelayProp.getInt();
+            
+            Property maxCatchDelayProp = config.get(
+                "autocatch",
+                "maxCatchDelay",
+                150,
+                "Maximum delay in milliseconds before auto-catching (must be greater than minCatchDelay)",
+                31,
+                2000
+            );
+            maxCatchDelay = maxCatchDelayProp.getInt();
+            
+            // Validate catch delay settings
+            if (maxCatchDelay <= minCatchDelay) {
+                maxCatchDelay = minCatchDelay + 1;
+                maxCatchDelayProp.set(maxCatchDelay);
+            }
             
             if (config.hasChanged()) {
                 config.save();

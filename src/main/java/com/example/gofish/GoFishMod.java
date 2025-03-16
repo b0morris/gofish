@@ -85,7 +85,7 @@ public class GoFishMod
         
         @Override
         public String getCommandUsage(ICommandSender sender) {
-            return "/gofish [debug|reload]";
+            return "/gofish [debug|reload|autocatch]";
         }
         
         @Override
@@ -101,6 +101,7 @@ public class GoFishMod
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §fCommands:"));
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §f/gofish debug - Show debug info"));
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §f/gofish reload - Reload config"));
+                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f/gofish autocatch [on|off] - Toggle auto-catch"));
                     return;
                 }
                 
@@ -116,6 +117,7 @@ public class GoFishMod
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §fOn Hypixel: " + (isOnHypixel ? "§aYes" : "§cNo")));
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §fOn SkyBlock: " + (isOnSkyblock ? "§aYes" : "§cNo")));
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §fCurrently Fishing: " + (isFishing ? "§aYes" : "§cNo")));
+                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §fAuto-Catch: " + (GoFishConfig.enableAutoCatch ? "§aEnabled" : "§cDisabled")));
                     
                     if (Minecraft.getMinecraft() != null && Minecraft.getMinecraft().getCurrentServerData() != null) {
                         String serverIP = Minecraft.getMinecraft().getCurrentServerData().serverIP;
@@ -150,11 +152,35 @@ public class GoFishMod
                             String.format("%.4f, %.4f, %.4f", fishHook.motionX, fishHook.motionY, fishHook.motionZ)));
                         sender.addChatMessage(new ChatComponentText("§b[GoFish] §f - In Water: " + 
                             (fishHook.isInWater() ? "§aYes" : "§cNo")));
+                        sender.addChatMessage(new ChatComponentText("§b[GoFish] §f - In Lava: " + 
+                            (fishHook.isInLava() ? "§aYes" : "§cNo")));
                     }
                 } else if (subCommand.equals("reload")) {
                     // Reload config
                     GoFishConfig.loadConfig();
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §fConfiguration reloaded!"));
+                } else if (subCommand.equals("autocatch")) {
+                    // Toggle auto-catch
+                    if (args.length > 1) {
+                        String option = args[1].toLowerCase();
+                        if (option.equals("on") || option.equals("enable") || option.equals("true")) {
+                            GoFishConfig.enableAutoCatch = true;
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §aAuto-catch enabled!"));
+                        } else if (option.equals("off") || option.equals("disable") || option.equals("false")) {
+                            GoFishConfig.enableAutoCatch = false;
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §cAuto-catch disabled!"));
+                        } else {
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §cInvalid option. Use 'on' or 'off'."));
+                        }
+                    } else {
+                        // Toggle current state
+                        GoFishConfig.enableAutoCatch = !GoFishConfig.enableAutoCatch;
+                        sender.addChatMessage(new ChatComponentText("§b[GoFish] §fAuto-catch " + 
+                            (GoFishConfig.enableAutoCatch ? "§aenabled" : "§cdisabled") + "§f!"));
+                    }
+                    
+                    // Save the config
+                    GoFishConfig.saveConfig();
                 } else {
                     sender.addChatMessage(new ChatComponentText("§b[GoFish] §cUnknown command. Use /gofish for help."));
                 }

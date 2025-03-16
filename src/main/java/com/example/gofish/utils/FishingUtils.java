@@ -147,4 +147,36 @@ public class FishingUtils {
             return false;
         }
     }
+
+    /**
+     * Check if the player's fishing hook is in a valid liquid (water or lava)
+     * @return true if the hook is in water or lava, false otherwise
+     */
+    public static boolean isHookInLiquid() {
+        try {
+            EntityFishHook hook = getFishingHook();
+            if (hook == null) return false;
+            
+            return hook.isInWater() || hook.isInLava();
+        } catch (Exception e) {
+            System.err.println("[GoFish] Error checking if hook is in liquid: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if the player's fishing hook is in lava
+     * @return true if the hook is in lava, false otherwise
+     */
+    public static boolean isHookInLava() {
+        try {
+            EntityFishHook hook = getFishingHook();
+            if (hook == null) return false;
+            
+            return hook.isInLava();
+        } catch (Exception e) {
+            System.err.println("[GoFish] Error checking if hook is in lava: " + e.getMessage());
+            return false;
+        }
+    }
 } 
