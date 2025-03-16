@@ -1,0 +1,16 @@
+[
+{
+  "modid": "gofish",
+  "name": "GoFish",
+  "description": "Enhances fishing in Hypixel SkyBlock by detecting when fish are caught.",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["Your Name"],
+  "credits": "Thanks to the Hypixel community for inspiration",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
