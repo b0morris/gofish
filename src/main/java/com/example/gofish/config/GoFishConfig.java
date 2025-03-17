@@ -16,6 +16,7 @@ public class GoFishConfig {
     public static boolean enableNotifications = true;
     public static boolean playSoundOnFishCaught = true;
     public static boolean playSoundOnSeaCreature = true;
+    public static boolean enablePacketLogging = false;
     
     // Notification settings
     public static boolean showFishCaughtMessages = true;
@@ -24,8 +25,8 @@ public class GoFishConfig {
     
     // Auto-catch settings
     public static boolean enableAutoCatch = false;
-    public static int minCatchDelay = 30;
-    public static int maxCatchDelay = 150;
+    public static int minCatchDelay = 80;
+    public static int maxCatchDelay = 500;
     
     /**
      * Initialize the configuration
@@ -83,6 +84,14 @@ public class GoFishConfig {
             );
             playSoundOnSeaCreature = playSoundOnSeaCreatureProp.getBoolean();
             
+            Property enablePacketLoggingProp = config.get(
+                Configuration.CATEGORY_GENERAL, 
+                "enablePacketLogging", 
+                false, 
+                "Enable packet logging for fishing-related packets (can be toggled with a key binding)"
+            );
+            enablePacketLogging = enablePacketLoggingProp.getBoolean();
+            
             // Notification settings
             Property showFishCaughtMessagesProp = config.get(
                 "notifications", 
@@ -120,7 +129,7 @@ public class GoFishConfig {
             Property minCatchDelayProp = config.get(
                 "autocatch",
                 "minCatchDelay",
-                30,
+                80,
                 "Minimum delay in milliseconds before auto-catching (30-1000)",
                 30,
                 1000
@@ -130,7 +139,7 @@ public class GoFishConfig {
             Property maxCatchDelayProp = config.get(
                 "autocatch",
                 "maxCatchDelay",
-                150,
+                300,
                 "Maximum delay in milliseconds before auto-catching (must be greater than minCatchDelay)",
                 31,
                 2000

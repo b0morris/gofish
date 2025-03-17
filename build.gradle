@@ -86,10 +86,16 @@ processResources
 sourceSets {
     main {
         java {
-            srcDir 'src/main/java'
+            srcDirs = ['src/main/java']
         }
         resources {
-            srcDir 'src/main/resources'
+            srcDirs = ['src/main/resources']
         }
+    }
+}
+
+idea {
+    module {
+        inheritOutputDirs = true
     }
 }

@@ -16,6 +16,7 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import com.example.gofish.handlers.PacketHandler;
 import com.example.gofish.handlers.ChatHandler;
 import com.example.gofish.handlers.FishingHandler;
+import com.example.gofish.handlers.KeyBindingHandler;
 import com.example.gofish.config.GoFishConfig;
 import com.example.gofish.utils.FishingUtils;
 
@@ -29,6 +30,7 @@ public class GoFishMod
     private PacketHandler packetHandler;
     private ChatHandler chatHandler;
     private FishingHandler fishingHandler;
+    private KeyBindingHandler keyBindingHandler;
     
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -37,9 +39,10 @@ public class GoFishMod
             GoFishConfig.init(event.getSuggestedConfigurationFile());
             
             // Create handlers
-            packetHandler = new PacketHandler();
-            chatHandler = new ChatHandler();
             fishingHandler = new FishingHandler();
+            packetHandler = new PacketHandler(fishingHandler);
+            chatHandler = new ChatHandler();
+            keyBindingHandler = new KeyBindingHandler(packetHandler);
             
             // Connect handlers
             FishingUtils.setPacketHandler(packetHandler);
@@ -48,6 +51,7 @@ public class GoFishMod
             MinecraftForge.EVENT_BUS.register(packetHandler);
             MinecraftForge.EVENT_BUS.register(chatHandler);
             MinecraftForge.EVENT_BUS.register(fishingHandler);
+            MinecraftForge.EVENT_BUS.register(keyBindingHandler);
             
             // Log that the mod is starting
             System.out.println("[GoFish] Initializing GoFish mod version " + VERSION);
@@ -85,7 +89,7 @@ public class GoFishMod
         
         @Override
         public String getCommandUsage(ICommandSender sender) {
-            return "/gofish [debug|reload|autocatch]";
+            return "/gofish [debug|reload|autocatch|packetlogging]";
         }
         
         @Override
@@ -98,10 +102,10 @@ public class GoFishMod
             try {
                 if (args.length == 0) {
                     // Display help
-                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §fCommands:"));
-                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f/gofish debug - Show debug info"));
-                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f/gofish reload - Reload config"));
-                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f/gofish autocatch [on|off] - Toggle auto-catch"));
+                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §fAvailable commands:"));
+                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f- §e/gofish reload §f- Reload configuration"));
+                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f- §e/gofish autocatch [on|off] §f- Toggle auto-catch"));
+                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §f- §e/gofish packetlogging [on|off] §f- Toggle packet logging"));
                     return;
                 }
                 
@@ -177,6 +181,28 @@ public class GoFishMod
                         GoFishConfig.enableAutoCatch = !GoFishConfig.enableAutoCatch;
                         sender.addChatMessage(new ChatComponentText("§b[GoFish] §fAuto-catch " + 
                             (GoFishConfig.enableAutoCatch ? "§aenabled" : "§cdisabled") + "§f!"));
+                    }
+                    
+                    // Save the config
+                    GoFishConfig.saveConfig();
+                } else if (subCommand.equals("packetlogging")) {
+                    // Toggle packet logging
+                    if (args.length > 1) {
+                        String option = args[1].toLowerCase();
+                        if (option.equals("on") || option.equals("enable") || option.equals("true")) {
+                            GoFishConfig.enablePacketLogging = true;
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §aPacket logging enabled!"));
+                        } else if (option.equals("off") || option.equals("disable") || option.equals("false")) {
+                            GoFishConfig.enablePacketLogging = false;
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §cPacket logging disabled!"));
+                        } else {
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §cInvalid option. Use 'on' or 'off'."));
+                        }
+                    } else {
+                        // Toggle current state
+                        GoFishConfig.enablePacketLogging = !GoFishConfig.enablePacketLogging;
+                        sender.addChatMessage(new ChatComponentText("§b[GoFish] §fPacket logging " + 
+                            (GoFishConfig.enablePacketLogging ? "§aenabled" : "§cdisabled") + "§f!"));
                     }
                     
                     // Save the config
