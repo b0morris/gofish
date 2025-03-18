@@ -13,17 +13,28 @@ import java.util.regex.Pattern;
 
 public class ChatHandler {
 
-    // Debug mode for development
-    private static final boolean DEBUG_MODE = true;
-
-    // Patterns for Hypixel SkyBlock fishing messages - more flexible patterns
-    private static final Pattern FISH_CATCH_PATTERN = Pattern.compile("(?:§r)?§a(?:You caught a |You caught an )(?:§r)?§[0-9a-f](.+?)(?:§r)?§a!");
-    private static final Pattern SEA_CREATURE_PATTERN = Pattern.compile("(?:§r)?§a(?:A |An )(.+?)(?:§r)?§a surfaces!");
-    private static final Pattern TREASURE_PATTERN = Pattern.compile("(?:§r)?§a(?:You found a |You found an )(?:§r)?§[0-9a-f](.+?)(?:§r)?§a!");
+    // Regular expressions for detecting fishing events in chat
+    private static final Pattern FISH_CATCH_PATTERN = Pattern.compile("(?:&r)?&a(?:You caught a |You caught an )(?:&r)?&[0-9a-f](.+?)(?:&r)?&a!");
+    private static final Pattern SEA_CREATURE_PATTERN = Pattern.compile("(?:&r)?&a(?:A |An )(.+?)(?:&r)?&a surfaces!");
+    private static final Pattern TREASURE_PATTERN = Pattern.compile("(?:&r)?&a(?:You found a |You found an )(?:&r)?&[0-9a-f](.+?)(?:&r)?&a!");
     
     // Sound resources
-    private static final ResourceLocation FISH_CAUGHT_SOUND = new ResourceLocation("random.orb");
+    private static final ResourceLocation FISH_CAUGHT_SOUND = new ResourceLocation("random.pop");
     private static final ResourceLocation SEA_CREATURE_SOUND = new ResourceLocation("mob.guardian.elder.hit");
+    private static final ResourceLocation TREASURE_SOUND = new ResourceLocation("random.levelup");
+    
+    // Debug mode for development
+    private static final boolean DEBUG_MODE = false;
+    
+    /**
+     * Convert & color codes to § color codes
+     * @param message The message with & color codes
+     * @return The message with § color codes
+     */
+    private static String formatColorCodes(String message) {
+        char sectionSign = '\u00A7';
+        return message.replace('&', sectionSign);
+    }
     
     @SubscribeEvent
     public void onChatMessage(ClientChatReceivedEvent event) {
@@ -84,7 +95,7 @@ public class ChatHandler {
             
             // Show message if enabled
             if (GoFishConfig.showFishCaughtMessages) {
-                mc.thePlayer.addChatMessage(new ChatComponentText("§b[GoFish] §fCaught: §e" + fishName));
+                mc.thePlayer.addChatMessage(new ChatComponentText(formatColorCodes("&b[GoFish] &fCaught: &e" + fishName)));
             }
             
             // Play sound if enabled
@@ -110,7 +121,7 @@ public class ChatHandler {
             
             // Show message if enabled
             if (GoFishConfig.showSeaCreatureMessages) {
-                mc.thePlayer.addChatMessage(new ChatComponentText("§b[GoFish] §fSea Creature: §c" + creatureName));
+                mc.thePlayer.addChatMessage(new ChatComponentText(formatColorCodes("&b[GoFish] &fSea Creature: &c" + creatureName)));
             }
             
             // Play sound if enabled
@@ -136,11 +147,13 @@ public class ChatHandler {
             
             // Show message if enabled
             if (GoFishConfig.showTreasureMessages) {
-                mc.thePlayer.addChatMessage(new ChatComponentText("§b[GoFish] §fTreasure: §d" + treasureName));
+                mc.thePlayer.addChatMessage(new ChatComponentText(formatColorCodes("&b[GoFish] &fTreasure: &d" + treasureName)));
             }
             
-            // Always play a sound for treasure
-            mc.thePlayer.playSound("random.levelup", 1.0F, 1.0F);
+            // Play sound if enabled
+            if (GoFishConfig.playSoundOnFishCaught) {
+                mc.thePlayer.playSound(TREASURE_SOUND.toString(), 1.0F, 1.0F);
+            }
         } catch (Exception e) {
             System.err.println("[GoFish] Error handling treasure: " + e.getMessage());
         }

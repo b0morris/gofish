@@ -32,6 +32,7 @@ public class KeyBindingHandler {
     public void onKeyInput(InputEvent.KeyInputEvent event) {
         if (TOGGLE_AUTO_FISH.isPressed()) {
             GoFishConfig.enableAutoCatch = !GoFishConfig.enableAutoCatch;
+            GoFishConfig.enableAutoRecast = !GoFishConfig.enableAutoRecast;
             GoFishConfig.saveConfig();
             Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(
                     EnumChatFormatting.AQUA + "[GoFish] " + EnumChatFormatting.WHITE + "Auto-fishing " +

@@ -16,6 +16,7 @@ import net.minecraft.network.play.server.S2CPacketSpawnGlobalEntity;
 import net.minecraft.network.play.server.S0EPacketSpawnObject;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumParticleTypes;
+import net.minecraft.entity.projectile.EntityFishHook;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 
@@ -25,33 +26,43 @@ import java.util.Set;
 
 public class PacketHandler {
     
-    // Sound constants for fishing detection
+    // Constants for packet analysis
+    private static final int FISHING_BOBBER_ENTITY_ID = 90;
+    private static final String SPLASH_PARTICLE_NAME = "splash";
+    private static final String WAKE_PARTICLE_NAME = "wake";
+    private static final String WATER_BUBBLE_PARTICLE_NAME = "bubble";
+    private static final String FISHING_HOOK_SOUND = "random.splash";
+    private static final String FISH_CAUGHT_MESSAGE = "&r&aYou caught a &r";
     private static final String SPLASH_SOUND = "random.splash";
     private static final String WATER_SPLASH_SOUND = "game.player.swim.splash";
-    private static final String FISH_CAUGHT_MESSAGE = "§r§aYou caught a §r";
     
-    // Debug mode for development
-    private static final boolean DEBUG_MODE = true;
-    
-    // Track hook cast time to avoid false detections
-    private long lastHookCastTime = 0;
-    private long lastBiteTime = 0;
-    private static final long CAST_IGNORE_TIME = 2000; // Ignore detections for 2 seconds after casting
-    private static final long BITE_COOLDOWN = 1000; // 1 second cooldown between bite detections
-    
-    // Packet logging
-    private long packetLoggingDuration = 5000; // Log packets for 5 seconds after a bite
-    private long lastPacketLoggingTime = 0;
+    // Packet logging state
+    private boolean isLoggingPackets = false;
+    private long packetLoggingStartTime = 0;
+    private static final long packetLoggingDuration = 10000; // 10 seconds
     private Set<String> loggedPacketTypes = new HashSet<>();
     
-    // Track fishing hook entity ID for packet analysis
+    // Fishing state
+    private long lastHookCastTime = 0;
+    private long lastBiteTime = 0;
     private int fishingHookEntityId = -1;
     
-    // Reference to the fishing handler for auto-catch
-    private FishingHandler fishingHandler;
+    // Reference to the fishing handler for callbacks
+    private final FishingHandler fishingHandler;
     
     /**
-     * Constructor that takes a FishingHandler reference
+     * Convert & color codes to § color codes
+     * @param message The message with & color codes
+     * @return The message with § color codes
+     */
+    private static String formatColorCodes(String message) {
+        char sectionSign = '\u00A7';
+        return message.replace('&', sectionSign);
+    }
+    
+    /**
+     * Constructor
+     * @param fishingHandler The fishing handler to notify when a fish bites
      */
     public PacketHandler(FishingHandler fishingHandler) {
         this.fishingHandler = fishingHandler;
@@ -100,14 +111,14 @@ public class PacketHandler {
             event.manager.channel().pipeline().addBefore("packet_handler", "gofish_packet_handler", new FishingPacketHandler());
             
             // Only try to send a message if the player is not null
-            if (DEBUG_MODE && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
+            if (GoFishConfig.enableDebugNotifications && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
                 Minecraft.getMinecraft().thePlayer.addChatMessage(
-                    new ChatComponentText("§b[GoFish] §fPacket handler initialized")
+                    new ChatComponentText(formatColorCodes("&b[GoFish] &fPacket handler initialized"))
                 );
             }
         } catch (Exception e) {
             // Log any errors that occur during initialization
-            System.err.println("[GoFish] Error initializing packet handler: " + e.getMessage());
+            System.err.println(formatColorCodes("[GoFish] Error initializing packet handler: " + e.getMessage()));
             e.printStackTrace();
         }
     }
@@ -121,7 +132,7 @@ public class PacketHandler {
             }
         } catch (Exception e) {
             // Log any errors that occur during cleanup
-            System.err.println("[GoFish] Error removing packet handler: " + e.getMessage());
+            System.err.println(formatColorCodes("[GoFish] Error removing packet handler: " + e.getMessage()));
         }
     }
     
@@ -130,8 +141,8 @@ public class PacketHandler {
      */
     public void updateHookCastTime() {
         lastHookCastTime = System.currentTimeMillis();
-        if (DEBUG_MODE) {
-            System.out.println("[GoFish] Hook cast time updated");
+        if (GoFishConfig.enableDebugNotifications) {
+            System.out.println(formatColorCodes("[GoFish] Hook cast time updated"));
         }
         
         // Update fishing hook entity ID
@@ -143,56 +154,48 @@ public class PacketHandler {
      */
     private void updateFishingHookEntityId() {
         try {
-            net.minecraft.entity.projectile.EntityFishHook fishHook = FishingUtils.getFishingHook();
-            if (fishHook != null) {
-                fishingHookEntityId = fishHook.getEntityId();
-                if (DEBUG_MODE) {
-                    System.out.println("[GoFish] Updated fishing hook entity ID: " + fishingHookEntityId);
+            // Get the fishing hook entity
+            net.minecraft.entity.projectile.EntityFishHook hook = FishingUtils.getFishingHook();
+            if (hook != null) {
+                fishingHookEntityId = hook.getEntityId();
+                if (GoFishConfig.enableDebugNotifications) {
+                    System.out.println(formatColorCodes("[GoFish] Fishing hook entity ID updated: " + fishingHookEntityId));
                 }
             }
         } catch (Exception e) {
-            System.err.println("[GoFish] Error updating fishing hook entity ID: " + e.getMessage());
+            System.err.println(formatColorCodes("[GoFish] Error updating fishing hook entity ID: " + e.getMessage()));
         }
     }
     
     /**
-     * Start logging packets for a duration after a fish bite
+     * Start logging packets for a short duration
      */
     public void startPacketLogging() {
-        lastPacketLoggingTime = System.currentTimeMillis();
-        loggedPacketTypes.clear();
-        
-        // Make sure we have the current fishing hook entity ID
-        updateFishingHookEntityId();
-        
-        if (DEBUG_MODE) {
-            System.out.println("[GoFish] Started packet logging for " + (packetLoggingDuration / 1000) + " seconds");
-            
-            if (Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
-                Minecraft.getMinecraft().thePlayer.addChatMessage(
-                    new ChatComponentText("§b[GoFish] §fStarted packet logging for " + (packetLoggingDuration / 1000) + " seconds")
-                );
-            }
+        packetLoggingStartTime = System.currentTimeMillis();
+        if (GoFishConfig.enableDebugNotifications && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
+            Minecraft.getMinecraft().thePlayer.addChatMessage(
+                new ChatComponentText(formatColorCodes("&b[GoFish] &fStarted packet logging for " + (packetLoggingDuration / 1000) + " seconds"))
+            );
         }
     }
     
     /**
-     * Log a packet type if we're in the logging period
+     * Log packet types during the logging duration
      */
     private void logPacketType(Packet packet) {
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastPacketLoggingTime < packetLoggingDuration) {
+        if (currentTime - packetLoggingStartTime < packetLoggingDuration) {
             String packetType = packet.getClass().getSimpleName();
             
             // Only log each packet type once to avoid spam
             if (!loggedPacketTypes.contains(packetType)) {
                 loggedPacketTypes.add(packetType);
-                System.out.println("[GoFish] Detected packet type: " + packetType);
+                System.out.println(formatColorCodes("[GoFish] Detected packet type: " + packetType));
                 
                 // Also show in chat if debug mode is on
-                if (DEBUG_MODE && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
+                if (GoFishConfig.enableDebugNotifications && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
                     Minecraft.getMinecraft().thePlayer.addChatMessage(
-                        new ChatComponentText("§b[GoFish] §fDetected packet: §e" + packetType)
+                        new ChatComponentText(formatColorCodes("&b[GoFish] &fDetected packet: &e" + packetType))
                     );
                 }
             }
@@ -207,114 +210,61 @@ public class PacketHandler {
      */
     private void logDetailedPacketInfo(Packet packet) {
         try {
-            // Only log detailed info if we have a valid fishing hook entity ID
-            if (fishingHookEntityId == -1) return;
-            
-            // Entity velocity packets - might indicate fish bite
-            if (packet instanceof S12PacketEntityVelocity) {
+            if (packet instanceof S29PacketSoundEffect) {
+                S29PacketSoundEffect soundPacket = (S29PacketSoundEffect) packet;
+                String soundName = soundPacket.getSoundName();
+                float volume = soundPacket.getVolume();
+                float pitch = soundPacket.getPitch();
+                
+                System.out.println(formatColorCodes("[GoFish] Sound packet: " + soundName + 
+                                   " (volume=" + volume + ", pitch=" + pitch + ")"));
+                
+                // Also show in chat if debug mode is on
+                if (GoFishConfig.enableDebugNotifications && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
+                    Minecraft.getMinecraft().thePlayer.addChatMessage(
+                        new ChatComponentText(formatColorCodes("&b[GoFish] &fSound: &e" + soundName + 
+                                             " &f(volume=" + volume + ", pitch=" + pitch + ")"))
+                    );
+                }
+            } else if (packet instanceof S2APacketParticles) {
+                S2APacketParticles particlePacket = (S2APacketParticles) packet;
+                EnumParticleTypes particleType = particlePacket.getParticleType();
+                
+                System.out.println(formatColorCodes("[GoFish] Particle packet: " + particleType.getParticleName()));
+                
+                // Also show in chat if debug mode is on
+                if (GoFishConfig.enableDebugNotifications && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
+                    Minecraft.getMinecraft().thePlayer.addChatMessage(
+                        new ChatComponentText(formatColorCodes("&b[GoFish] &fParticle: &e" + particleType.getParticleName()))
+                    );
+                }
+            } else if (packet instanceof S12PacketEntityVelocity) {
                 S12PacketEntityVelocity velocityPacket = (S12PacketEntityVelocity) packet;
                 int entityId = velocityPacket.getEntityID();
+                double motionX = velocityPacket.getMotionX() / 8000.0;
+                double motionY = velocityPacket.getMotionY() / 8000.0;
+                double motionZ = velocityPacket.getMotionZ() / 8000.0;
                 
-                // Check if this packet is for our fishing hook
-                if (entityId == fishingHookEntityId) {
-                    String info = String.format(
-                        "EntityVelocity for hook: ID=%d, motionX=%.2f, motionY=%.2f, motionZ=%.2f",
-                        entityId,
-                        velocityPacket.getMotionX() / 8000.0,
-                        velocityPacket.getMotionY() / 8000.0,
-                        velocityPacket.getMotionZ() / 8000.0
-                    );
-                    
-                    System.out.println("[GoFish] " + info);
-                    
-                    if (DEBUG_MODE && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
-                        Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText("§b[GoFish] §f" + info)
-                        );
-                    }
-                }
-            }
-            
-            // Entity status packets - might indicate hook state change
-            else if (packet instanceof S19PacketEntityStatus) {
-                S19PacketEntityStatus statusPacket = (S19PacketEntityStatus) packet;
-                int entityId = getEntityIdFromPacket(statusPacket);
+                System.out.println(formatColorCodes("[GoFish] Velocity packet: entityId=" + entityId + 
+                                   " (motionX=" + String.format("%.2f", motionX) + 
+                                   ", motionY=" + String.format("%.2f", motionY) + 
+                                   ", motionZ=" + String.format("%.2f", motionZ) + ")"));
                 
-                // Check if this packet is for our fishing hook
-                if (entityId == fishingHookEntityId) {
-                    String info = String.format(
-                        "EntityStatus for hook: ID=%d, opCode=%d",
-                        entityId,
-                        statusPacket.getOpCode()
+                // Also show in chat if debug mode is on
+                if (GoFishConfig.enableDebugNotifications && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
+                    Minecraft.getMinecraft().thePlayer.addChatMessage(
+                        new ChatComponentText(formatColorCodes("&b[GoFish] &fVelocity: entityId=" + entityId + 
+                                             " &f(motionY=" + String.format("%.2f", motionY) + ")"))
                     );
-                    
-                    System.out.println("[GoFish] " + info);
-                    
-                    if (DEBUG_MODE && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
-                        Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText("§b[GoFish] §f" + info)
-                        );
-                    }
-                }
-            }
-            
-            // Entity movement packets - might indicate hook bobbing
-            else if (packet instanceof S14PacketEntity) {
-                S14PacketEntity entityPacket = (S14PacketEntity) packet;
-                int entityId = getEntityIdFromPacket(entityPacket);
-                
-                // Check if this packet is for our fishing hook
-                if (entityId == fishingHookEntityId) {
-                    String info = String.format(
-                        "EntityMovement for hook: ID=%d",
-                        entityId
-                    );
-                    
-                    System.out.println("[GoFish] " + info);
-                    
-                    if (DEBUG_MODE && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
-                        Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText("§b[GoFish] §f" + info)
-                        );
-                    }
-                }
-            }
-            
-            // Spawn object packets - might contain fishing hook data
-            else if (packet instanceof S0EPacketSpawnObject) {
-                S0EPacketSpawnObject spawnPacket = (S0EPacketSpawnObject) packet;
-                int entityId = spawnPacket.getEntityID();
-                int type = spawnPacket.getType();
-                
-                // Type 90 is fishing hook
-                if (type == 90) {
-                    fishingHookEntityId = entityId;
-                    
-                    String info = String.format(
-                        "SpawnObject for hook: ID=%d, type=%d, x=%.2f, y=%.2f, z=%.2f",
-                        entityId,
-                        type,
-                        spawnPacket.getX() / 32.0,
-                        spawnPacket.getY() / 32.0,
-                        spawnPacket.getZ() / 32.0
-                    );
-                    
-                    System.out.println("[GoFish] " + info);
-                    
-                    if (DEBUG_MODE && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
-                        Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText("§b[GoFish] §f" + info)
-                        );
-                    }
                 }
             }
         } catch (Exception e) {
-            System.err.println("[GoFish] Error logging detailed packet info: " + e.getMessage());
+            // Silently ignore errors in packet logging
         }
     }
     
     /**
-     * Custom packet handler to intercept and process network packets
+     * Inner class to handle packet interception
      */
     private class FishingPacketHandler extends ChannelDuplexHandler {
         @Override
@@ -323,7 +273,7 @@ public class PacketHandler {
                 // Process incoming packets
                 if (msg instanceof Packet && Minecraft.getMinecraft() != null && Minecraft.getMinecraft().thePlayer != null) {
                     // Log packet types if logging is active
-                    if (System.currentTimeMillis() - lastPacketLoggingTime < packetLoggingDuration) {
+                    if (System.currentTimeMillis() - packetLoggingStartTime < packetLoggingDuration) {
                         logPacketType((Packet) msg);
                     }
                     
@@ -334,7 +284,7 @@ public class PacketHandler {
                 }
             } catch (Exception e) {
                 // Log any errors but don't crash the game
-                System.err.println("[GoFish] Error processing packet: " + e.getMessage());
+                System.err.println(formatColorCodes("[GoFish] Error processing packet: " + e.getMessage()));
             }
             
             // Pass the packet along the pipeline
@@ -377,7 +327,7 @@ public class PacketHandler {
             }
             
             // Ignore packets that are too close to the cast time
-            if (System.currentTimeMillis() - lastHookCastTime < CAST_IGNORE_TIME) {
+            if (System.currentTimeMillis() - lastHookCastTime < GoFishConfig.castIgnoreTime) {
                 return false;
             }
             
@@ -426,7 +376,7 @@ public class PacketHandler {
             
             // Check for cooldown to prevent spam
             long currentTime = System.currentTimeMillis();
-            if (currentTime - lastBiteTime < BITE_COOLDOWN) {
+            if (currentTime - lastBiteTime < GoFishConfig.biteCooldown) {
                 return;
             }
             
@@ -455,13 +405,13 @@ public class PacketHandler {
                 
                 // If the splash is close to the fishing hook (likely a fish bite)
                 // Use a larger detection radius for Hypixel
-                if (distance < 5.0) {
+                if (distance < 2.0) {
                     lastBiteTime = currentTime;
                     
-                    if (DEBUG_MODE) {
+                    if (GoFishConfig.enableDebugNotifications) {
                         Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText("§b[GoFish] §fDetected sound: " + soundPacket.getSoundName() + 
-                                                 " at distance: " + String.format("%.2f", distance))
+                            new ChatComponentText(formatColorCodes("&b[GoFish] &fDetected splash near hook: distance=" + 
+                                                 String.format("%.2f", distance)))
                         );
                     }
                     
@@ -469,7 +419,7 @@ public class PacketHandler {
                     if (GoFishConfig.showFishCaughtMessages) {
                         // Notify the player that a fish was caught
                         Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText("§b[GoFish] §fFish on the hook! Reel it in!")
+                            new ChatComponentText(formatColorCodes("&b[GoFish] &fFish on the hook! Reel it in!"))
                         );
                     }
                     
@@ -486,55 +436,53 @@ public class PacketHandler {
             } else if (packet instanceof S2APacketParticles) {
                 S2APacketParticles particlePacket = (S2APacketParticles) packet;
                 
-                if (particlePacket.getParticleType() == EnumParticleTypes.WATER_SPLASH) {
-                    // Get the coordinates of the particles
-                    double x = particlePacket.getXCoordinate();
-                    double y = particlePacket.getYCoordinate();
-                    double z = particlePacket.getZCoordinate();
+                // Get the coordinates of the particles
+                double x = particlePacket.getXCoordinate();
+                double y = particlePacket.getYCoordinate();
+                double z = particlePacket.getZCoordinate();
+                
+                // Get fishing hook position
+                net.minecraft.entity.projectile.EntityFishHook fishHook = FishingUtils.getFishingHook();
+                if (fishHook == null) return;
+                
+                double hookX = fishHook.posX;
+                double hookY = fishHook.posY;
+                double hookZ = fishHook.posZ;
+                
+                // Calculate distance between particles and fishing hook
+                double distance = Math.sqrt(
+                    Math.pow(x - hookX, 2) + 
+                    Math.pow(y - hookY, 2) + 
+                    Math.pow(z - hookZ, 2)
+                );
+                
+                // If the particles are close to the fishing hook (likely a fish bite)
+                if (distance < 1.5) {
+                    lastBiteTime = currentTime;
                     
-                    // Get fishing hook position
-                    net.minecraft.entity.projectile.EntityFishHook fishHook = FishingUtils.getFishingHook();
-                    if (fishHook == null) return;
+                    if (GoFishConfig.enableDebugNotifications) {
+                        Minecraft.getMinecraft().thePlayer.addChatMessage(
+                            new ChatComponentText(formatColorCodes("&b[GoFish] &fDetected particles near hook: distance=" + 
+                                                 String.format("%.2f", distance)))
+                        );
+                    }
                     
-                    double hookX = fishHook.posX;
-                    double hookY = fishHook.posY;
-                    double hookZ = fishHook.posZ;
+                    // Only show notification if enabled
+                    if (GoFishConfig.showFishCaughtMessages) {
+                        // Notify the player that a fish was caught
+                        Minecraft.getMinecraft().thePlayer.addChatMessage(
+                            new ChatComponentText(formatColorCodes("&b[GoFish] &fFish on the hook! Reel it in!"))
+                        );
+                    }
                     
-                    // Calculate distance between particles and fishing hook
-                    double distance = Math.sqrt(
-                        Math.pow(x - hookX, 2) + 
-                        Math.pow(y - hookY, 2) + 
-                        Math.pow(z - hookZ, 2)
-                    );
+                    // Play sound if enabled
+                    if (GoFishConfig.playSoundOnFishCaught) {
+                        Minecraft.getMinecraft().thePlayer.playSound("random.orb", 1.0F, 1.0F);
+                    }
                     
-                    // If the particles are close to the fishing hook
-                    if (distance < 5.0) {
-                        lastBiteTime = currentTime;
-                        
-                        if (DEBUG_MODE) {
-                            Minecraft.getMinecraft().thePlayer.addChatMessage(
-                                new ChatComponentText("§b[GoFish] §fDetected water splash particles at distance: " + 
-                                                     String.format("%.2f", distance))
-                            );
-                        }
-                        
-                        // Only show notification if enabled
-                        if (GoFishConfig.showFishCaughtMessages) {
-                            // Notify the player that a fish was caught
-                            Minecraft.getMinecraft().thePlayer.addChatMessage(
-                                new ChatComponentText("§b[GoFish] §fFish on the hook! Reel it in!")
-                            );
-                        }
-                        
-                        // Play sound if enabled
-                        if (GoFishConfig.playSoundOnFishCaught) {
-                            Minecraft.getMinecraft().thePlayer.playSound("random.orb", 1.0F, 1.0F);
-                        }
-                        
-                        // Call the fishing handler's onFishBite method
-                        if (fishingHandler != null) {
-                            fishingHandler.onFishBite();
-                        }
+                    // Call the fishing handler's onFishBite method
+                    if (fishingHandler != null) {
+                        fishingHandler.onFishBite();
                     }
                 }
             } else if (packet instanceof S12PacketEntityVelocity && fishingHookEntityId != -1) {
@@ -547,10 +495,10 @@ public class PacketHandler {
                     if (Math.abs(motionY) > 0.2) {
                         lastBiteTime = currentTime;
                         
-                        if (DEBUG_MODE) {
+                        if (GoFishConfig.enableDebugNotifications) {
                             Minecraft.getMinecraft().thePlayer.addChatMessage(
-                                new ChatComponentText("§b[GoFish] §fDetected hook velocity change: motionY=" + 
-                                                     String.format("%.2f", motionY))
+                                new ChatComponentText(formatColorCodes("&b[GoFish] &fDetected hook velocity change: motionY=" + 
+                                                     String.format("%.2f", motionY)))
                             );
                         }
                         
@@ -558,7 +506,7 @@ public class PacketHandler {
                         if (GoFishConfig.showFishCaughtMessages) {
                             // Notify the player that a fish was caught
                             Minecraft.getMinecraft().thePlayer.addChatMessage(
-                                new ChatComponentText("§b[GoFish] §fFish on the hook! Reel it in!")
+                                new ChatComponentText(formatColorCodes("&b[GoFish] &fFish on the hook! Reel it in!"))
                             );
                         }
                         

@@ -65,6 +65,35 @@ public class FishingUtils {
     }
     
     /**
+     * Check if the player was fishing in the previous tick
+     * @return true if the player was fishing, false otherwise
+     */
+    public static boolean wasFishing() {
+        return wasFishing;
+    }
+    
+    /**
+     * Check if the player is holding a fishing rod
+     * @return true if the player is holding a fishing rod, false otherwise
+     */
+    public static boolean isHoldingFishingRod() {
+        try {
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc == null) return false;
+            
+            EntityPlayer player = mc.thePlayer;
+            if (player == null) return false;
+            
+            // Check if player is holding a fishing rod
+            ItemStack heldItem = player.getHeldItem();
+            return heldItem != null && heldItem.getItem() instanceof ItemFishingRod;
+        } catch (Exception e) {
+            System.err.println("[GoFish] Error checking if player is holding fishing rod: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
      * Get the position of the player's fishing hook
      * @return the fishing hook entity or null if not fishing
      */
