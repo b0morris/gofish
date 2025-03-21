@@ -179,17 +179,28 @@ public class FishingUtils {
 
     /**
      * Check if the player's fishing hook is in a valid liquid (water or lava)
-     * @return true if the hook is in water or lava, false otherwise
+     * @return true if the hook exists and is in liquid, false otherwise
      */
     public static boolean isHookInLiquid() {
-        try {
-            EntityFishHook hook = getFishingHook();
-            if (hook == null) return false;
+        EntityFishHook hook = getFishingHook();
+        if (hook == null) return false;
+        
+        // Check if the hook is in water
+        boolean inWater = hook.isInWater();
+        
+        if (inWater) {
+            return true;
+        } else {
+            // Additional checks - sometimes isInWater() can be unreliable
+            // Check if the hook's motion has settled which usually indicates it's in water
+            boolean hasSettled = Math.abs(hook.motionY) < 0.01 && 
+                               Math.abs(hook.motionX) < 0.01 && 
+                               Math.abs(hook.motionZ) < 0.01;
             
-            return hook.isInWater() || hook.isInLava();
-        } catch (Exception e) {
-            System.err.println("[GoFish] Error checking if hook is in liquid: " + e.getMessage());
-            return false;
+            // Check if the hook is below a certain Y level which likely means it's in water
+            boolean atWaterLevel = hook.posY % 1 < 0.9;
+            
+            return hasSettled && atWaterLevel;
         }
     }
 

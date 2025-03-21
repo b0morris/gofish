@@ -36,6 +36,13 @@ public class FishingHandler {
     private long lastFishCatchTime = 0;
     private static final int BACKUP_RECAST_TIMEOUT = 10000; // 10 seconds backup timeout
     
+    // Track failed casts for reliability
+    private int failedLiquidCastAttempts = 0;
+    private static final int MAX_FAILED_LIQUID_CASTS = 2; // Default - will use config value
+    private long lastCastAttemptTime = 0;
+    private boolean waitingForLiquidCheck = false;
+    private static final int LIQUID_CHECK_DELAY = 1500; // Wait 1.5 seconds after casting to check for liquid
+    
     // Reference to ShiftKeyHandler
     private ShiftKeyHandler shiftKeyHandler;
     
@@ -206,11 +213,25 @@ public class FishingHandler {
             
             // Only cast if we're holding a fishing rod and not already fishing
             if (!FishingUtils.isPlayerFishing() && FishingUtils.isHoldingFishingRod() && !isRightClicking) {
+                // Check if we're ready to cast (server lag protection)
+                if (System.currentTimeMillis() - lastCastAttemptTime < 1000) {
+                    sendDebugMessage(mc, "Server lag protection: Waiting before attempting to cast again");
+                    // Reschedule this cast with a longer delay
+                    scheduleRecast();
+                    return;
+                }
+                
                 sendDebugMessage(mc, "Auto-casting fishing rod");
+                
+                // Update last cast attempt time for lag protection
+                lastCastAttemptTime = System.currentTimeMillis();
                 
                 // Start right-click simulation
                 isRightClicking = true;
                 rightClickDuration = 0;
+                
+                // Set flag to check if the cast lands in liquid
+                waitingForLiquidCheck = true;
                 
                 if (GoFishConfig.enableDebugNotifications) {
                     mc.thePlayer.addChatMessage(
@@ -285,6 +306,58 @@ public class FishingHandler {
                 return;
             }
             
+            // Check if we need to verify if the hook landed in liquid
+            if (waitingForLiquidCheck && System.currentTimeMillis() - lastCastAttemptTime > LIQUID_CHECK_DELAY) {
+                waitingForLiquidCheck = false;
+                
+                // Only perform liquid check if enabled in config
+                if (GoFishConfig.enableLiquidDetection) {
+                    // Check if the hook is in liquid
+                    if (FishingUtils.isPlayerFishing() && !FishingUtils.isHookInLiquid()) {
+                        failedLiquidCastAttempts++;
+                        sendDebugMessage(mc, "Cast did not land in liquid! Failed attempts: " + failedLiquidCastAttempts + 
+                                          " (Max: " + GoFishConfig.maxLiquidFailures + ")");
+                        
+                        if (failedLiquidCastAttempts >= GoFishConfig.maxLiquidFailures) {
+                            // Disable auto-catch after configured number of failed attempts
+                            GoFishConfig.enableAutoCatch = false;
+                            GoFishConfig.saveConfig();
+                            
+                            // Notify the player
+                            mc.thePlayer.addChatMessage(new ChatComponentText(
+                                formatColorCodes("&c[GoFish] &fDisabled auto-fishing: Failed to cast into liquid " + 
+                                              failedLiquidCastAttempts + " times in a row (Max: " + 
+                                              GoFishConfig.maxLiquidFailures + ")")
+                            ));
+                            
+                            // Reset flags
+                            scheduledCatch = false;
+                            scheduledRecast = false;
+                            needsBackupRecast = false;
+                        } else {
+                            // Try recasting
+                            reelInIfNeeded();
+                            
+                            // Schedule a recast attempt
+                            int delay = 1000; // 1 second delay
+                            scheduledRecast = true;
+                            scheduledRecastTime = System.currentTimeMillis() + delay;
+                            
+                            sendDebugMessage(mc, "Scheduling recast after failed liquid cast in " + delay + "ms");
+                        }
+                    } else if (FishingUtils.isPlayerFishing() && FishingUtils.isHookInLiquid()) {
+                        // Cast was successful, reset the counter
+                        if (failedLiquidCastAttempts > 0) {
+                            sendDebugMessage(mc, "Cast successfully landed in liquid, resetting failed attempts counter");
+                        }
+                        failedLiquidCastAttempts = 0;
+                    }
+                } else {
+                    // Liquid detection is disabled, always reset counter
+                    failedLiquidCastAttempts = 0;
+                }
+            }
+            
             // Check if we need a backup recast (in case the normal recast mechanism failed)
             if (needsBackupRecast && GoFishConfig.enableAutoRecast && System.currentTimeMillis() - lastFishCatchTime > BACKUP_RECAST_TIMEOUT) {
                 // Only trigger if we're not fishing, not already scheduling a recast, and not right-clicking
@@ -303,6 +376,19 @@ public class FishingHandler {
                 
                 // Reset the backup recast flag regardless
                 needsBackupRecast = false;
+            }
+            
+            // Periodic check to ensure we're fishing if auto-fishing is enabled
+            // This is a second backup system for cases where all other recast mechanisms fail
+            if (GoFishConfig.enableAutoCatch && GoFishConfig.enableAutoRecast && 
+                !FishingUtils.isPlayerFishing() && !isRightClicking && !scheduledRecast && 
+                System.currentTimeMillis() - lastCastAttemptTime > 5000 && // Don't spam recast attempts
+                FishingUtils.isHoldingFishingRod()) {
+                
+                sendDebugMessage(mc, "EMERGENCY RECAST - Not fishing when we should be!");
+                
+                // Immediate recast
+                castRodIfNeeded();
             }
             
             // Handle right-click simulation if active

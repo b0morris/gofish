@@ -84,6 +84,16 @@ public class GoFishConfig {
     public static float positionSafetyThreshold = 0.1f;
     public static float rotationSafetyThreshold = 5.0f;
     
+    // Safety features
+    public static boolean enablePositionSafety = true;
+    public static boolean enableRotationSafety = true;
+    public static double maxPositionDifference = 0.5;
+    public static double maxRotationDifference = 5.0;
+    
+    // Liquid detection safety feature
+    public static boolean enableLiquidDetection = true;   // Toggle for liquid detection safety
+    public static int maxLiquidFailures = 2;             // Number of failed liquid casts before disabling auto-catch
+    
     /**
      * Initialize the configuration
      * @param configFile The configuration file
@@ -177,16 +187,16 @@ public class GoFishConfig {
             // Auto-catch settings
             Property enableAutoCatchProp = config.get(
                 Configuration.CATEGORY_GENERAL, 
-                "enableAutoCatch", 
-                false, 
+                "enableAutoCatch",
+                false,
                 "Enable auto-catching of fish"
             );
             enableAutoCatch = enableAutoCatchProp.getBoolean();
             
             Property minCatchDelayProp = config.get(
                 Configuration.CATEGORY_GENERAL, 
-                "minCatchDelay", 
-                80, 
+                "minCatchDelay",
+                80,
                 "Minimum delay in milliseconds before catching a fish (0-10000)",
                 0,
                 10000
@@ -195,7 +205,7 @@ public class GoFishConfig {
             
             Property maxCatchDelayProp = config.get(
                 Configuration.CATEGORY_GENERAL, 
-                "maxCatchDelay", 
+                "maxCatchDelay",
                 500, 
                 "Maximum delay in milliseconds before catching a fish (must be greater than minCatchDelay)",
                 minCatchDelay + 1,
@@ -494,6 +504,50 @@ public class GoFishConfig {
             );
             rotationSafetyThreshold = (float) rotationSafetyThresholdProp.getDouble();
             
+            // Load safety settings
+            enablePositionSafety = config.get(
+                "safety",
+                "enablePositionSafety",
+                true,
+                "Enable position safety feature"
+            ).getBoolean();
+            enableRotationSafety = config.get(
+                "safety",
+                "enableRotationSafety",
+                true,
+                "Enable rotation safety feature"
+            ).getBoolean();
+            maxPositionDifference = config.get(
+                "safety",
+                "maxPositionDifference",
+                0.5,
+                "Maximum position difference for detecting accidental casting (0.01+)",
+                0.01,
+                Float.MAX_VALUE
+            ).getDouble();
+            maxRotationDifference = config.get(
+                "safety",
+                "maxRotationDifference",
+                5.0,
+                "Maximum rotation difference for detecting accidental casting (1.0+)",
+                1.0,
+                Float.MAX_VALUE
+            ).getDouble();
+            enableLiquidDetection = config.get(
+                "safety",
+                "enableLiquidDetection",
+                true,
+                "Enable liquid detection safety feature"
+            ).getBoolean();
+            maxLiquidFailures = config.get(
+                "safety",
+                "maxLiquidFailures",
+                2,
+                "Maximum number of liquid cast failures before disabling auto-catch",
+                0,
+                Integer.MAX_VALUE
+            ).getInt();
+            
             if (config.hasChanged()) {
                 config.save();
             }
@@ -574,6 +628,12 @@ public class GoFishConfig {
             config.get("safety", "enableSafetyFeatures", true).set(enableSafetyFeatures);
             config.get("safety", "positionSafetyThreshold", 0.1f).set(positionSafetyThreshold);
             config.get("safety", "rotationSafetyThreshold", 5.0f).set(rotationSafetyThreshold);
+            config.get("safety", "enablePositionSafety", true).set(enablePositionSafety);
+            config.get("safety", "enableRotationSafety", true).set(enableRotationSafety);
+            config.get("safety", "maxPositionDifference", 0.5).set(maxPositionDifference);
+            config.get("safety", "maxRotationDifference", 5.0).set(maxRotationDifference);
+            config.get("safety", "enableLiquidDetection", true).set(enableLiquidDetection);
+            config.get("safety", "maxLiquidFailures", 2).set(maxLiquidFailures);
             
             // Save the config
             config.save();
@@ -640,6 +700,12 @@ public class GoFishConfig {
             props.setProperty("missChancePercentage", String.valueOf(missChancePercentage));
             props.setProperty("minMissTimingOffset", String.valueOf(minMissTimingOffset));
             props.setProperty("maxMissTimingOffset", String.valueOf(maxMissTimingOffset));
+            props.setProperty("enablePositionSafety", String.valueOf(enablePositionSafety));
+            props.setProperty("enableRotationSafety", String.valueOf(enableRotationSafety));
+            props.setProperty("maxPositionDifference", String.valueOf(maxPositionDifference));
+            props.setProperty("maxRotationDifference", String.valueOf(maxRotationDifference));
+            props.setProperty("enableLiquidDetection", String.valueOf(enableLiquidDetection));
+            props.setProperty("maxLiquidFailures", String.valueOf(maxLiquidFailures));
             
             // Save to file with comment
             FileOutputStream out = new FileOutputStream(namedConfigFile);
@@ -716,6 +782,12 @@ public class GoFishConfig {
             missChancePercentage = Integer.parseInt(props.getProperty("missChancePercentage", String.valueOf(missChancePercentage)));
             minMissTimingOffset = Integer.parseInt(props.getProperty("minMissTimingOffset", String.valueOf(minMissTimingOffset)));
             maxMissTimingOffset = Integer.parseInt(props.getProperty("maxMissTimingOffset", String.valueOf(maxMissTimingOffset)));
+            enablePositionSafety = Boolean.parseBoolean(props.getProperty("enablePositionSafety", String.valueOf(enablePositionSafety)));
+            enableRotationSafety = Boolean.parseBoolean(props.getProperty("enableRotationSafety", String.valueOf(enableRotationSafety)));
+            maxPositionDifference = Double.parseDouble(props.getProperty("maxPositionDifference", String.valueOf(maxPositionDifference)));
+            maxRotationDifference = Double.parseDouble(props.getProperty("maxRotationDifference", String.valueOf(maxRotationDifference)));
+            enableLiquidDetection = Boolean.parseBoolean(props.getProperty("enableLiquidDetection", String.valueOf(enableLiquidDetection)));
+            maxLiquidFailures = Integer.parseInt(props.getProperty("maxLiquidFailures", String.valueOf(maxLiquidFailures)));
             
             // Save to main config file as well
             saveConfig();

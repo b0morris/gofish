@@ -593,38 +593,79 @@ public class GoFishMod
                         GoFishConfig.enableSafetyFeatures = false;
                         GoFishConfig.saveConfig();
                         sender.addChatMessage(new ChatComponentText("§b[GoFish] §fSafety features disabled."));
-                        sender.addChatMessage(new ChatComponentText("§c[GoFish] §fWarning: Disabling safety features may increase detection risk!"));
                     }
-                    else if (args[1].equalsIgnoreCase("position") && args.length == 3) {
-                        try {
-                            float threshold = Float.parseFloat(args[2]);
-                            
-                            // Only enforce minimum values, no upper limits
-                            if (threshold < 0.01f) threshold = 0.01f; // Minimum 0.01 blocks
-                            
-                            GoFishConfig.positionSafetyThreshold = threshold;
+                    else if (args[1].equalsIgnoreCase("position") && args.length > 2) {
+                        if (args[2].equalsIgnoreCase("on")) {
+                            GoFishConfig.enablePositionSafety = true;
                             GoFishConfig.saveConfig();
-                            
-                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fPosition safety threshold set to " + 
-                                    threshold + " blocks."));
-                        } catch (NumberFormatException e) {
-                            sender.addChatMessage(new ChatComponentText("§c[GoFish] §fInvalid number. Usage: /gofish safety position <threshold>"));
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fPosition safety enabled."));
+                        } else if (args[2].equalsIgnoreCase("off")) {
+                            GoFishConfig.enablePositionSafety = false;
+                            GoFishConfig.saveConfig();
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fPosition safety disabled."));
+                        } else {
+                            try {
+                                double value = Double.parseDouble(args[2]);
+                                if (value < 0.01) {
+                                    sender.addChatMessage(new ChatComponentText("§c[GoFish] §fPosition threshold must be at least 0.01"));
+                                } else {
+                                    GoFishConfig.maxPositionDifference = value;
+                                    GoFishConfig.saveConfig();
+                                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §fPosition safety threshold set to " + value + " blocks."));
+                                }
+                            } catch (NumberFormatException e) {
+                                sender.addChatMessage(new ChatComponentText("§c[GoFish] §fInvalid number format. Use '/gofish safety position <threshold>' or '/gofish safety position <on|off>'"));
+                            }
                         }
                     }
-                    else if (args[1].equalsIgnoreCase("rotation") && args.length == 3) {
-                        try {
-                            float threshold = Float.parseFloat(args[2]);
-                            
-                            // Only enforce minimum values, no upper limits
-                            if (threshold < 1.0f) threshold = 1.0f; // Minimum 1 degree
-                            
-                            GoFishConfig.rotationSafetyThreshold = threshold;
+                    else if (args[1].equalsIgnoreCase("rotation") && args.length > 2) {
+                        if (args[2].equalsIgnoreCase("on")) {
+                            GoFishConfig.enableRotationSafety = true;
                             GoFishConfig.saveConfig();
-                            
-                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fRotation safety threshold set to " + 
-                                    threshold + " degrees."));
-                        } catch (NumberFormatException e) {
-                            sender.addChatMessage(new ChatComponentText("§c[GoFish] §fInvalid number. Usage: /gofish safety rotation <threshold>"));
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fRotation safety enabled."));
+                        } else if (args[2].equalsIgnoreCase("off")) {
+                            GoFishConfig.enableRotationSafety = false;
+                            GoFishConfig.saveConfig();
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fRotation safety disabled."));
+                        } else {
+                            try {
+                                double value = Double.parseDouble(args[2]);
+                                if (value < 1.0) {
+                                    sender.addChatMessage(new ChatComponentText("§c[GoFish] §fRotation threshold must be at least 1.0 degrees"));
+                                } else {
+                                    GoFishConfig.maxRotationDifference = value;
+                                    GoFishConfig.saveConfig();
+                                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §fRotation safety threshold set to " + value + " degrees."));
+                                }
+                            } catch (NumberFormatException e) {
+                                sender.addChatMessage(new ChatComponentText("§c[GoFish] §fInvalid number format. Use '/gofish safety rotation <threshold>' or '/gofish safety rotation <on|off>'"));
+                            }
+                        }
+                    }
+                    else if (args[1].equalsIgnoreCase("liquid") && args.length > 2) {
+                        if (args[2].equalsIgnoreCase("on")) {
+                            GoFishConfig.enableLiquidDetection = true;
+                            GoFishConfig.saveConfig();
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fLiquid detection enabled."));
+                        } else if (args[2].equalsIgnoreCase("off")) {
+                            GoFishConfig.enableLiquidDetection = false;
+                            GoFishConfig.saveConfig();
+                            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fLiquid detection disabled."));
+                        } else if (args[2].equalsIgnoreCase("failures") && args.length > 3) {
+                            try {
+                                int value = Integer.parseInt(args[3]);
+                                if (value < 0) {
+                                    sender.addChatMessage(new ChatComponentText("§c[GoFish] §fFailure count must be at least 0"));
+                                } else {
+                                    GoFishConfig.maxLiquidFailures = value;
+                                    GoFishConfig.saveConfig();
+                                    sender.addChatMessage(new ChatComponentText("§b[GoFish] §fLiquid detection failure threshold set to " + value + "."));
+                                }
+                            } catch (NumberFormatException e) {
+                                sender.addChatMessage(new ChatComponentText("§c[GoFish] §fInvalid number format. Use '/gofish safety liquid failures <count>'"));
+                            }
+                        } else {
+                            sender.addChatMessage(new ChatComponentText("§c[GoFish] §fInvalid command. Use '/gofish safety liquid <on|off>' or '/gofish safety liquid failures <count>'"));
                         }
                     }
                     else {
@@ -826,19 +867,23 @@ public class GoFishMod
             sender.addChatMessage(new ChatComponentText("§7Note: Jump and fishing actions won't overlap"));
         }
         
+        /**
+         * Show help for safety commands
+         */
         private void showSafetyHelp(ICommandSender sender) {
-            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fSafety Feature Commands:"));
-            sender.addChatMessage(new ChatComponentText("§b/gofish safety on §f- Enable safety features"));
-            sender.addChatMessage(new ChatComponentText("§b/gofish safety off §f- Disable safety features"));
-            sender.addChatMessage(new ChatComponentText("§b/gofish safety position <value> §f- Set position safety threshold (0.01-1.0 blocks)"));
-            sender.addChatMessage(new ChatComponentText("§b/gofish safety rotation <value> §f- Set rotation safety threshold (1-15 degrees)"));
+            sender.addChatMessage(new ChatComponentText("§b[GoFish] §fSafety Commands:"));
+            sender.addChatMessage(new ChatComponentText("§b/gofish safety on §f- Enable all safety features"));
+            sender.addChatMessage(new ChatComponentText("§b/gofish safety off §f- Disable all safety features"));
+            sender.addChatMessage(new ChatComponentText("§b/gofish safety position <on|off|threshold> §f- Control position safety"));
+            sender.addChatMessage(new ChatComponentText("§b/gofish safety rotation <on|off|threshold> §f- Control rotation safety"));
+            sender.addChatMessage(new ChatComponentText("§b/gofish safety liquid <on|off> §f- Toggle liquid detection"));
+            sender.addChatMessage(new ChatComponentText("§b/gofish safety liquid failures <count> §f- Set max failed casts before stopping"));
             
             sender.addChatMessage(new ChatComponentText("§b[GoFish] §fCurrent settings:"));
-            sender.addChatMessage(new ChatComponentText("§fSafety features enabled: §b" + GoFishConfig.enableSafetyFeatures));
-            sender.addChatMessage(new ChatComponentText("§fPosition threshold: §b" + GoFishConfig.positionSafetyThreshold + " blocks"));
-            sender.addChatMessage(new ChatComponentText("§fRotation threshold: §b" + GoFishConfig.rotationSafetyThreshold + " degrees"));
-            
-            sender.addChatMessage(new ChatComponentText("§7Note: Auto-fishing will be disabled if player moves or looks away from fishing position"));
+            sender.addChatMessage(new ChatComponentText("§fSafety features: §b" + GoFishConfig.enableSafetyFeatures));
+            sender.addChatMessage(new ChatComponentText("§fPosition safety: §b" + GoFishConfig.enablePositionSafety + " §f(threshold: §b" + GoFishConfig.maxPositionDifference + " §fblocks)"));
+            sender.addChatMessage(new ChatComponentText("§fRotation safety: §b" + GoFishConfig.enableRotationSafety + " §f(threshold: §b" + GoFishConfig.maxRotationDifference + " §fdegrees)"));
+            sender.addChatMessage(new ChatComponentText("§fLiquid detection: §b" + GoFishConfig.enableLiquidDetection + " §f(max failures: §b" + GoFishConfig.maxLiquidFailures + "§f)"));
         }
         
         /**
